@@ -1,0 +1,10 @@
+__pycache__/
+.vscode/
+scratchpad.ipynb
+lightning_logs/
+wandb/
+.env
+.idea
+*results.json
+*.pt
+*.pth

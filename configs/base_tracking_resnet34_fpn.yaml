@@ -1,0 +1,121 @@
+model:
+  task: tracking
+  backbone:
+    name: resnet34
+    pretrained: True
+  
+  neck:
+    name: fpn
+    upsample_channels: [256, 128, 64]
+    upsample_type: nearest
+    conv_type: normal
+
+  output_heads:
+    heatmap:
+      num_classes: 2
+      init_bias: -2.19
+      target_method: cornernet
+      loss_function: cornernet_focal
+      loss_weight: 1
+
+    box_2d:
+      init_bias: 10
+      loss_function: giou
+      loss_weight: 5
+
+    reid:
+      init_bias: 0
+      loss_function: ce
+      max_track_ids: 800
+      loss_weight: 1
+
+  optimizer:
+    name: Adam
+    params:
+      lr: 0.0001
+      weight_decay: 0.0001
+
+  lr_scheduler:
+    name: OneCycleLR
+    params:
+      max_lr: 0.02
+
+data:
+  train:
+    dataset:
+      type: mot-tracking
+      data_dir: datasets/MOT/train
+      sequence_names:
+      - MOT17-04-FRCNN    # 1050 frames
+      - MOT17-11-FRCNN    # 900
+      - MOT17-05-FRCNN    # 837
+      - MOT17-13-FRCNN    # 750
+      - MOT17-10-FRCNN    # 654
+
+      transforms:
+        - name: HorizontalFlip
+          params:
+            p: 0.5
+        - name: RandomResizedCrop
+          params:
+            height: 608
+            width: 1088
+        - name: ColorJitter
+          params:
+            brightness: 0.4
+            contrast: 0.4
+            saturation: 0.4
+  
+    dataloader:
+      batch_size: 8
+      num_workers: 8
+      shuffle: True
+      pin_memory: True
+
+  validation:
+    dataset:
+      type: mot-tracking
+      data_dir: datasets/MOT/train
+      sequence_names:
+      - MOT17-02-FRCNN    # 600
+      - MOT17-09-FRCNN    # 525
+      
+      transforms:
+        - name:Resize:
+          params:
+            width: 1088
+            height: 608
+    
+    dataloader:
+      batch_size: 8
+      num_workers: 8
+      shuffle: False
+      pin_memory: True
+
+trainer:
+  gpus: 1
+  precision: 16
+  max_epochs: 30
+  val_check_interval: 1.0
+  benchmark: True
+  gradient_clip_val: 35
+
+  # logger:
+  #   name: WandbLogger
+  #   params:
+  #     project: tracking
+  #     log_model: True
+
+  callbacks:
+    - name: ModelCheckpoint
+      params:
+        monitor: val/total_loss
+        save_last: True
+
+    - name: LearningRateMonitor
+      params:
+        logging_interval: step
+    
+    - name: LogImageCallback
+      params:
+        n_epochs: 5

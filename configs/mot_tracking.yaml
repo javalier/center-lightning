@@ -1,0 +1,139 @@
+model:
+  task: tracking
+  load_from_checkpoint: wandb/run-20210722_110035-16i29xpr/files/crowdhuman_tracking/16i29xpr/checkpoints/epoch=59-step=11279.ckpt
+
+  backbone:
+    name: resnet34
+    pretrained: True
+    frozen_stages: 4
+  
+  neck:
+    name: fpn
+    upsample_channels: [256, 128, 64]
+    upsample_type: nearest
+    conv_type: normal
+
+  output_heads:
+    heatmap:
+      num_classes: 1
+      init_bias: -2.19
+      target_method: cornernet
+      loss_function: cornernet_focal
+      loss_weight: 1
+
+    box_2d:
+      init_bias: 10
+      loss_function: giou
+      loss_weight: 5
+
+    reid:
+      init_bias: null
+      loss_function: ce
+      max_track_ids: 2900
+      loss_weight: 1
+
+  optimizer:
+    name: Adam
+    params:
+      lr: 0.0001
+      weight_decay: 0.0001
+
+  lr_scheduler:
+    name: OneCycleLR
+    params:
+      max_lr: 0.001
+
+data:
+  train:
+    dataset:
+      type: mot-tracking
+      data_dir: datasets/MOT/train
+      sequence_names:
+      - MOT17-04-FRCNN    # 1050 frames
+      - MOT17-11-FRCNN    # 900
+      - MOT17-05-FRCNN    # 837
+      - MOT17-13-FRCNN    # 750
+      - MOT17-10-FRCNN    # 654
+      - MOT20-02    # 2782
+      - MOT20-03    # 2405
+      - MOT20-05    # 3315
+
+      transforms:
+        - name: HorizontalFlip
+          params:
+            p: 0.5
+        - name: Affine
+          params:
+            scale: [0.8, 1.25]
+            rotate: [-10, 10]
+        - name: RandomResizedCrop
+          params:
+            width: 1088
+            height: 608
+        - name: ColorJitter
+          params:
+            brightness: 0.4
+            contrast: 0.4
+            saturation: 0.4
+        - name: Cutout
+          params:
+            num_holes: 10
+            max_w_size: 60
+            max_h_size: 60
+    
+    dataloader:
+      batch_size: 16
+      num_workers: 8
+      shuffle: True
+      pin_memory: True
+
+  validation:
+    dataset:
+      type: mot-tracking
+      data_dir: datasets/MOT/train
+      sequence_names:
+      - MOT17-02-FRCNN    # 600
+      - MOT17-09-FRCNN    # 525
+      - MOT20-01    # 429
+      
+      transforms:
+        - name: Resize
+          params:
+            width: 1088
+            height: 608
+      
+    dataloader:
+      batch_size: 16
+      num_workers: 8
+      shuffle: False
+      pin_memory: True
+
+trainer:
+  gpus: 1
+  precision: 16
+  max_epochs: 30
+  val_check_interval: 1.0
+  benchmark: True
+  gradient_clip_val: 35
+
+  logger:
+    name: WandbLogger
+    params:
+      project: mot
+      log_model: True
+
+  callbacks:
+    - name: ModelCheckpoint
+      params:
+        monitor: val/HOTA
+        mode: max
+        save_last: True
+
+    - name: LearningRateMonitor
+      params:
+        logging_interval: step
+    
+    - name: LogImageCallback
+      params:
+        n_epochs: 5
+        random: True

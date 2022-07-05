@@ -1,0 +1,92 @@
+model:
+  task: detection
+  backbone:
+    name: resnet34
+    pretrained: True
+    input_channels: 3
+
+  neck:
+    name: simple
+    params:
+      upsample_channels: [256, 128, 64]
+      upsample_type: conv_transpose
+      conv_type: normal
+      
+      deconv_kernel: 3
+      deconv_init_bilinear: True
+      
+      skip_kernel: 3
+
+  output_heads:
+    heatmap:
+      num_classes: 80
+      init_bias: -2.19
+      target_method: cornernet
+      loss_function: cornernet_focal
+      loss_weight: 1
+
+    box_2d:
+      init_bias: 0
+      loss_function: l1
+      loss_weight: 0.1
+
+  optimizer:
+    name: SGD
+    params:
+      lr: 0.02
+      momentum: 0.9
+      weight_decay: 0.0001
+
+  lr_scheduler:
+    name: OneCycleLR
+    params:
+      max_lr: 0.02
+
+data:
+  train:
+    dataset:
+      type: coco
+      data_dir: datasets/COCO
+      split: train2017
+
+      transforms:
+        HorizontalFlip:
+          p: 0.5
+        RandomResizedCrop:
+          height: 512
+          width: 512
+        ColorJitter:
+          brightness: 0.4
+          contrast: 0.4
+          saturation: 0.4
+  
+    dataloader:
+      batch_size: 32
+      num_workers: 8
+      shuffle: True
+      pin_memory: True
+
+  validation:
+    dataset:
+      type: coco
+      data_dir: datasets/COCO
+      split: val2017
+
+      transforms:
+        Resize:
+          height: 512
+          width: 512
+    
+    dataloader:
+      batch_size: 32
+      num_workers: 8
+      shuffle: False
+      pin_memory: True
+
+trainer:
+  gpus: 1
+  precision: 16
+  max_epochs: 140
+  val_check_interval: 1.0
+  benchmark: True
+  gradient_clip_val: 35
